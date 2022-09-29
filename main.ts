@@ -11,6 +11,8 @@ interface RiteCliConfig {
 	token: string;
 	username: string;
 	instanceUrl: string;
+	rest?: Record<string, any>;
+	[key: string]: any;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -85,10 +87,16 @@ const VERBS = {
 	},
 	
 	"cfg-print": function(config: RiteCliConfig) {
+		console.log("%cCurrent config:", "color: white; font-weight: bold");
+		config["Command line params of current invocation"] = config.rest;
+		delete config.rest;
 		console.log(config);
 	},
 
-	"edit": {
+	"create": async function(config: RiteCliConfig) {		
+		let path = prompt("Enter local path to save your file to: [defaults to a temp file if no filename is specified]");
+		if (!path) path = await Deno.makeTempFile();
+		
 		
 	}
 }
@@ -131,15 +139,22 @@ async function dumpConfig(config: Record<string, string>, p: string = getConfigP
 
 async function loadOrCreateConfig() {
 	const configPath = getConfigPath();
-	
-	if (!await fs.exists(configPath)) {
-		const config = genConfig();
-		await dumpConfig(config, configPath);
-		return config;
+	try {
+		const configContents = await Deno.readTextFile(configPath);
+		return JSON.parse(configContents);
 	}
-	
-	return JSON.parse(await Deno.readTextFile(configPath));
-}
+	catch(e) {
+		if (e instanceof Deno.errors.NotFound) {
+			console.log(`%cConfig file not found at "${configPath}". It will be created.`, "color: yellow; font-weight: bold");
+			const config = genConfig();
+			await dumpConfig(config, configPath);
+			return config;
+		}
+		else {
+			console.error(e);
+			die('Unhandled exception.');
+		}
+	}}
 
 function printHelp() {
 	console.log(`\
@@ -166,7 +181,8 @@ async function main() {
 		die(`Error: unknown verb ${verb}. See \`rite-cli help\` for help.`);
 	}
 
-	const config = await loadOrCreateConfig();
+	const config: RiteCliConfig = await loadOrCreateConfig();
+	config.rest = args;
 	await VERBS[verb as keyof typeof VERBS](config);
 
 	Deno.exit(0);
