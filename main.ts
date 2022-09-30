@@ -4,6 +4,7 @@ import * as path from "https://deno.land/std@0.156.0/path/mod.ts";
 import * as fs from "https://deno.land/std@0.156.0/fs/mod.ts";
 import dir from "https://deno.land/x/dir@1.5.1/mod.ts";
 import { getReasonPhrase } from "https://deno.land/x/https_status_codes@v1.2.0/mod.ts";
+import CryptoJS from "https://esm.sh/crypto-js";
 
 type Rec = Record<string, any>;
 
@@ -19,6 +20,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const API_PATHS = {
 	LIST_DOCS: "docs/list" as const,
 	UPLOAD_DOC: "docs/upload" as const,
+	CONTENTS: "docs/contents" as const
 }
 
 type API_PATH_T = typeof API_PATHS;
@@ -60,30 +62,98 @@ function printDocument(name: string, revisions: Record<string, string>[]) {
 	revisions.forEach(printSingleRevision);
 }
 
+async function apiGetDocsList(config: RiteCliConfig): Promise<Record<string, Rec[]>> {
+	const [code, resBody] = await cloudReq(config, API_PATHS.LIST_DOCS);
+	if (code !== 200) die("Error: ", getReasonPhrase(code));	
+	return groupRevisionsByDoc(resBody);
+}
+
+function getNumericInput(p: string, rest?: Record<string, any>): number {
+	const idx: number = parseInt(prompt(p) || '') || die("Invalid number supplied.") as unknown as number;
+	if (rest?.bounds && (idx < rest?.bounds[0] || idx > rest?.bounds[1])) die('Index supplied was out of bounds.');
+	return idx;
+}
+
+async function promptUserForDoc(config: RiteCliConfig) {
+	const list = Object.entries(await apiGetDocsList(config));
+		const revList = [];
+		let idx = 0;
+		for (const [key, val] of list) {
+			for (const rev of val) {
+				idx += 1;
+				revList.push([key, rev]);
+				console.log(`${idx}. %c${key}%c @ %c${rev.revision}`, "color: green", "", "color: white; font-weight: bold");
+			}
+		}
+	const docIdx = getNumericInput(`Which document would you like to get? [1-${revList.length}]`, {bounds: [1, revList.length]});
+	const rev = revList[docIdx - 1][1] as Rec;
+	return rev.uuid;
+}
+
+const AESDecrypt = (ciphertext: string, passphrase: string) => {
+	const bytes = CryptoJS.AES.decrypt(ciphertext, passphrase, {
+		format: CryptoJS.format.OpenSSL
+	});
+	return bytes.toString(CryptoJS.enc.Utf8);
+};
+
+async function apiGetDocContents(config: RiteCliConfig, uuid: string) {
+	const res = await cloudReq(config, API_PATHS.CONTENTS, { uuid });
+	if (res[0] !== 200) die("Error: ", getReasonPhrase(res[0]));
+
+	if (res[1].encrypted) {
+		const key = prompt('Document is encrypted. Enter passphrase.') || (die('Key cannot be empty.') as unknown as string);
+		res[1].contents = AESDecrypt(res[1].contents, key);
+	}
+
+	return res[1].contents;
+}
+
 const VERBS = {
 	"push": function(config: RiteCliConfig) {
 		
 	},
-	"pull": function(config: RiteCliConfig) {
-		
+	
+	"pull": async function(config: RiteCliConfig) {
+		const uuid = await promptUserForDoc(config);
+		const contents = await apiGetDocContents(config, uuid);
+		const path = prompt('Enter filename to save to.') || (die('Path cannot be empty.') as unknown as string);
+		try {
+			await Deno.writeTextFile(path, contents);
+			console.log(`Saved file to ${path} successfully.`);
+		}
+		catch (e) {
+			die('Error writing file: ', e);
+		}
 	},
-	"cat": function(config: RiteCliConfig) {
-		
+
+	"cat": async function(config: RiteCliConfig) {
+		const uuid = await promptUserForDoc(config);
+		const contents = await apiGetDocContents(config, uuid);
+		console.log(contents);
 	},
-	"help": function(config: RiteCliConfig) {
+
+	"help": function(_config: RiteCliConfig) {
 		printHelp();
 	},
+
 	"list": async function(config: RiteCliConfig) {
-		const [code, resBody] = await cloudReq(config, API_PATHS.LIST_DOCS);
-		if (code !== 200) {
-		    die("Error: ", getReasonPhrase(code));
-		}
-		
-		const docs: Record<string, Rec[]> = groupRevisionsByDoc(resBody);		
+		const docs = await apiGetDocsList(config);
 		Object.entries(docs).forEach(([name, revisions]) => printDocument(name, revisions));
 	},
 	
-	"cfg-set": function(config: RiteCliConfig) {
+	"cfg-set": async function(config: RiteCliConfig) {
+		delete config.rest;
+		const entries = Object.entries(config);
+		for (let i = 0; i < entries.length; i++) {
+			const idx = i + 1;
+			const [key, val] = entries[i];
+			console.log(`${idx}. ${key}: ${val}`);
+		}
+
+		const idx = getNumericInput(`Which value would you like to edit? [1-${entries.length}]`, {bounds:[1, entries.length]});
+		entries[idx - 1][1] = prompt(`Enter new value for "${entries[idx - 1][0]}"`);
+		await dumpConfig(Object.fromEntries(entries));
 	},
 	
 	"cfg-print": function(config: RiteCliConfig) {
@@ -93,11 +163,9 @@ const VERBS = {
 		console.log(config);
 	},
 
-	"create": async function(config: RiteCliConfig) {		
+	"create": async function(_config: RiteCliConfig) {		
 		let path = prompt("Enter local path to save your file to: [defaults to a temp file if no filename is specified]");
 		if (!path) path = await Deno.makeTempFile();
-		
-		
 	}
 }
 
