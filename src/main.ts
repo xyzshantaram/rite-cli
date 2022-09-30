@@ -81,8 +81,8 @@ async function promptUserForRevision(config: RiteCliConfig) {
         for (const rev of val) {
             idx += 1;
             revList.push([key, rev]);
-            console.log(`${idx}. %c${key}%c @ %c${rev.revision}${rev.encrypted ? ' encrypted' : ''}`,
-                "color: green", "", "color: white; font-weight: bold");
+            console.log(`${idx}. %c${key}%c @ %c${rev.revision}%c${rev.encrypted ? ' (encrypted)' : ''}`,
+                "color: green", "", "color: white; font-weight: bold", "color: grey");
         }
     }
     const docIdx = getNumericInput(`Which document would you like to get? [1-${revList.length}]`, { bounds: [1, revList.length] });
