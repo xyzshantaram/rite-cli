@@ -31,11 +31,10 @@ export const VERBS = {
         if (res[0] !== 200) {
             die(`Error while communicating with rite-cloud: ${res[1].message} (${getReasonPhrase(res[0])})`);
         }
-        else {
-            console.log("Uploaded successfully.");
-            console.log("UUID:", res[1].uuid);
-            console.log("View doc at:", `${config.instanceUrl}/docs/view/${res[1].uuid}`);
-        }
+
+        console.log("Uploaded successfully.");
+        console.log("UUID:", res[1].uuid);
+        console.log("View doc at:", `${config.instanceUrl}/docs/view/${res[1].uuid}`);
     },
 
     "pull": async function (config: RiteCliConfig) {
@@ -53,8 +52,7 @@ export const VERBS = {
 
     "cat": async function (config: RiteCliConfig) {
         const uuid = await promptUserForRevision(config);
-        const contents = await apiGetDocContents(config, uuid);
-        console.log(contents);
+        console.log(await apiGetDocContents(config, uuid));
     },
 
     "help": function (_config: RiteCliConfig) {
