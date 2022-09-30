@@ -68,12 +68,12 @@ async function apiGetDocsList(config: RiteCliConfig): Promise<Record<string, Rec
 }
 
 function getNumericInput(p: string, rest?: Record<string, any>): number {
-    const idx: number = parseInt(prompt(p) || '') || die("Invalid number supplied.") as unknown as number;
+    const idx: number = parseInt(promptOrDie(p, "Invalid number supplied."));
     if (rest?.bounds && (idx < rest?.bounds[0] || idx > rest?.bounds[1])) die('Index supplied was out of bounds.');
     return idx;
 }
 
-async function promptUserForDoc(config: RiteCliConfig) {
+async function promptUserForRevision(config: RiteCliConfig) {
     const list = Object.entries(await apiGetDocsList(config));
     const revList = [];
     let idx = 0;
@@ -97,27 +97,80 @@ const AESDecrypt = (ciphertext: string, passphrase: string) => {
     return bytes.toString(CryptoJS.enc.Utf8);
 };
 
+const AESEncrypt = (cleartext: string, passphrase: string) => {
+    return CryptoJS.AES.encrypt(cleartext, passphrase).toString(CryptoJS.format.OpenSSL);
+}
+
 async function apiGetDocContents(config: RiteCliConfig, uuid: string) {
     const res = await cloudReq(config, API_PATHS.CONTENTS, { uuid });
     if (res[0] !== 200) die("Error: ", getReasonPhrase(res[0]));
 
     if (res[1].encrypted) {
-        const key = prompt('Document is encrypted. Enter passphrase.') || (die('Key cannot be empty.') as unknown as string);
+        const key = promptOrDie('Document is encrypted. Enter passphrase.', 'Key cannot be empty.');
         res[1].contents = AESDecrypt(res[1].contents, key);
     }
 
     return res[1].contents;
 }
 
-const VERBS = {
-    "push": function (config: RiteCliConfig) {
+function promptOrDie(msg: string, err?: string) {
+    return prompt(msg)?.trim() || die(err || 'You must supply an input.') as unknown as string;
+}
 
+async function promptUserForDoc(config: RiteCliConfig) {
+    const docs = Object.keys(await apiGetDocsList(config));
+    let idx = 0;
+    console.log('Current documents: \n');
+    docs.forEach(itm => {
+        idx += 1;
+        console.log(`${idx}. ${itm}`);
+    })
+
+    let doc = promptOrDie('Enter a number to select one of the above, or type a name to create a new document.');
+    if (/\d+/.test(doc)) doc = docs[parseInt(doc)];
+
+    return doc;
+}
+
+const VERBS = {
+    "push": async function (config: RiteCliConfig) {
+        let contents = '';
+        const path = promptOrDie('Enter path of file to push: ', 'You must enter a path.');
+        try {
+            contents = await Deno.readTextFile(path);
+        }
+        catch (e) {
+            die("Error reading file: ", e);
+        }
+
+        const name = await promptUserForDoc(config);
+        const revision = promptOrDie('Enter revision name: ');
+        const pub = promptOrDie('Should this document be public? [y/n]') === 'y';
+        const passphrase = prompt('Enter password for encryption (leave blank to skip)');
+        let encrypted = false;
+        if (passphrase?.trim()) {
+            encrypted = true;
+            contents = AESEncrypt(contents, passphrase.trim());
+        }
+
+        const res = await cloudReq(config, API_PATHS.UPLOAD_DOC, {
+            name, revision, public: pub, encrypted, contents
+        });
+
+        if (res[0] !== 200) {
+            die(`Error while communicating with rite-cloud: ${res[1].message} (${getReasonPhrase(res[0])})`);
+        }
+        else {
+            console.log("Uploaded successfully.");
+            console.log("UUID:", res[1].uuid);
+            console.log("View doc at:", `${config.instanceUrl}/docs/view/${res[1].uuid}`);
+        }
     },
 
     "pull": async function (config: RiteCliConfig) {
-        const uuid = await promptUserForDoc(config);
+        const uuid = await promptUserForRevision(config);
         const contents = await apiGetDocContents(config, uuid);
-        const path = prompt('Enter filename to save to.') || (die('Path cannot be empty.') as unknown as string);
+        const path = promptOrDie('Enter filename to save to.', 'Path cannot be empty.');
         try {
             await Deno.writeTextFile(path, contents);
             console.log(`Saved file to ${path} successfully.`);
@@ -128,7 +181,7 @@ const VERBS = {
     },
 
     "cat": async function (config: RiteCliConfig) {
-        const uuid = await promptUserForDoc(config);
+        const uuid = await promptUserForRevision(config);
         const contents = await apiGetDocContents(config, uuid);
         console.log(contents);
     },
