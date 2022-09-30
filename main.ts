@@ -34,7 +34,7 @@ async function cloudReq(config: RiteCliConfig, p: API_PATH_T[keyof API_PATH_T], 
 			...body
 		})
 	});
-	
+
 	return [res.status, await res.json()];
 }
 
@@ -50,9 +50,8 @@ function groupRevisionsByDoc(revLs: Rec) {
 function printSingleRevision(itm: Rec) {
 	console.log(`%cRevision: "${itm.revision}"`, "font-weight: bold; color: gray");
 	console.log(
-		`%c(${ itm.public ? 'public' : 'private' }, ${
-			itm.encrypted ? 'encrypted' : 'not encrypted'
-		})`, 
+		`%c(${itm.public ? 'public' : 'private'}, ${itm.encrypted ? 'encrypted' : 'not encrypted'
+		})`,
 		'font-style: italic');
 	console.log(`%cUUID: %c${itm.uuid}\n`, "font-weight: bold", "");
 }
@@ -64,7 +63,7 @@ function printDocument(name: string, revisions: Record<string, string>[]) {
 
 async function apiGetDocsList(config: RiteCliConfig): Promise<Record<string, Rec[]>> {
 	const [code, resBody] = await cloudReq(config, API_PATHS.LIST_DOCS);
-	if (code !== 200) die("Error: ", getReasonPhrase(code));	
+	if (code !== 200) die("Error: ", getReasonPhrase(code));
 	return groupRevisionsByDoc(resBody);
 }
 
@@ -76,16 +75,17 @@ function getNumericInput(p: string, rest?: Record<string, any>): number {
 
 async function promptUserForDoc(config: RiteCliConfig) {
 	const list = Object.entries(await apiGetDocsList(config));
-		const revList = [];
-		let idx = 0;
-		for (const [key, val] of list) {
-			for (const rev of val) {
-				idx += 1;
-				revList.push([key, rev]);
-				console.log(`${idx}. %c${key}%c @ %c${rev.revision}`, "color: green", "", "color: white; font-weight: bold");
-			}
+	const revList = [];
+	let idx = 0;
+	for (const [key, val] of list) {
+		for (const rev of val) {
+			idx += 1;
+			revList.push([key, rev]);
+			console.log(`${idx}. %c${key}%c @ %c${rev.revision}${rev.encrypted ? ' encrypted' : ''}`,
+				"color: green", "", "color: white; font-weight: bold");
 		}
-	const docIdx = getNumericInput(`Which document would you like to get? [1-${revList.length}]`, {bounds: [1, revList.length]});
+	}
+	const docIdx = getNumericInput(`Which document would you like to get? [1-${revList.length}]`, { bounds: [1, revList.length] });
 	const rev = revList[docIdx - 1][1] as Rec;
 	return rev.uuid;
 }
@@ -110,11 +110,11 @@ async function apiGetDocContents(config: RiteCliConfig, uuid: string) {
 }
 
 const VERBS = {
-	"push": function(config: RiteCliConfig) {
-		
+	"push": function (config: RiteCliConfig) {
+
 	},
-	
-	"pull": async function(config: RiteCliConfig) {
+
+	"pull": async function (config: RiteCliConfig) {
 		const uuid = await promptUserForDoc(config);
 		const contents = await apiGetDocContents(config, uuid);
 		const path = prompt('Enter filename to save to.') || (die('Path cannot be empty.') as unknown as string);
@@ -127,22 +127,22 @@ const VERBS = {
 		}
 	},
 
-	"cat": async function(config: RiteCliConfig) {
+	"cat": async function (config: RiteCliConfig) {
 		const uuid = await promptUserForDoc(config);
 		const contents = await apiGetDocContents(config, uuid);
 		console.log(contents);
 	},
 
-	"help": function(_config: RiteCliConfig) {
+	"help": function (_config: RiteCliConfig) {
 		printHelp();
 	},
 
-	"list": async function(config: RiteCliConfig) {
+	"list": async function (config: RiteCliConfig) {
 		const docs = await apiGetDocsList(config);
 		Object.entries(docs).forEach(([name, revisions]) => printDocument(name, revisions));
 	},
-	
-	"cfg-set": async function(config: RiteCliConfig) {
+
+	"cfg-set": async function (config: RiteCliConfig) {
 		delete config.rest;
 		const entries = Object.entries(config);
 		for (let i = 0; i < entries.length; i++) {
@@ -151,19 +151,19 @@ const VERBS = {
 			console.log(`${idx}. ${key}: ${val}`);
 		}
 
-		const idx = getNumericInput(`Which value would you like to edit? [1-${entries.length}]`, {bounds:[1, entries.length]});
+		const idx = getNumericInput(`Which value would you like to edit? [1-${entries.length}]`, { bounds: [1, entries.length] });
 		entries[idx - 1][1] = prompt(`Enter new value for "${entries[idx - 1][0]}"`);
 		await dumpConfig(Object.fromEntries(entries));
 	},
-	
-	"cfg-print": function(config: RiteCliConfig) {
+
+	"cfg-print": function (config: RiteCliConfig) {
 		console.log("%cCurrent config:", "color: white; font-weight: bold");
 		config["Command line params of current invocation"] = config.rest;
 		delete config.rest;
 		console.log(config);
 	},
 
-	"create": async function(_config: RiteCliConfig) {		
+	"create": async function (_config: RiteCliConfig) {
 		let path = prompt("Enter local path to save your file to: [defaults to a temp file if no filename is specified]");
 		if (!path) path = await Deno.makeTempFile();
 	}
@@ -177,20 +177,20 @@ function die(...args: string[]) {
 }
 
 function genConfig() {
-		const config = {
-			instanceUrl: prompt("Enter the path of your Rite Cloud instance [https://riteapp.co.in by default]")?.trim() || "https://riteapp.co.in",
-			username: prompt("Enter your Rite Cloud username")?.trim() as string,
-			token: prompt("Enter your Rite Cloud token")?.trim() as string
-		};
-		if (!config.username) {
-			die("You must enter a username.");
-		}
-		
-		if (!config.token || !UUID_RE.test(config.token)) {
-			die("You must enter a valid Rite Cloud token.");
-		}
-		
-		return config;
+	const config = {
+		instanceUrl: prompt("Enter the path of your Rite Cloud instance [https://riteapp.co.in by default]")?.trim() || "https://riteapp.co.in",
+		username: prompt("Enter your Rite Cloud username")?.trim() as string,
+		token: prompt("Enter your Rite Cloud token")?.trim() as string
+	};
+	if (!config.username) {
+		die("You must enter a username.");
+	}
+
+	if (!config.token || !UUID_RE.test(config.token)) {
+		die("You must enter a valid Rite Cloud token.");
+	}
+
+	return config;
 
 }
 
@@ -211,7 +211,7 @@ async function loadOrCreateConfig() {
 		const configContents = await Deno.readTextFile(configPath);
 		return JSON.parse(configContents);
 	}
-	catch(e) {
+	catch (e) {
 		if (e instanceof Deno.errors.NotFound) {
 			console.log(`%cConfig file not found at "${configPath}". It will be created.`, "color: yellow; font-weight: bold");
 			const config = genConfig();
@@ -222,18 +222,26 @@ async function loadOrCreateConfig() {
 			console.error(e);
 			die('Unhandled exception.');
 		}
-	}}
+	}
+}
 
 function printHelp() {
 	console.log(`\
 Usage:
-\trite-cli VERB [OPTIONS]
-\twhere VERB={${Object.keys(VERBS).join(",")}}
+	rite-cli VERB [OPTIONS]
+	where VERB={${Object.keys(VERBS).join(", ")}}
 
-Verbs: [see \`rite-cli help VERB\` for detailed help]
+Verbs:
 
-\tlist: Lists all revisions of a specific or all documents.
-    `);
+	list: Lists all revisions of a specific or all documents.
+	push: Pushes a file to the cloud.
+	pull: Gets a file from the cloud and saves it locally.
+	cat: Gets a file from the cloud and displays its contents.
+	cfg-set: Change the value of a configuration parameter.
+	cfg-print: Print the current configuration.
+	create: Edit a file and push it to the cloud.
+	help: display this help.
+`);
 }
 
 async function main() {
@@ -244,7 +252,7 @@ async function main() {
 	if (!verb) {
 		die('Error: You must specify a verb.');
 	}
-	
+
 	if (!Object.keys(VERBS).includes(verb)) {
 		die(`Error: unknown verb ${verb}. See \`rite-cli help\` for help.`);
 	}
