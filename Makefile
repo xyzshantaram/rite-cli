@@ -1,5 +1,5 @@
 MAKE_OPTIONS = --unstable
-PERMS = --allow-env --allow-read --allow-write --allow-net # Deno permissions
+PERMS = --allow-env --allow-read --allow-write --allow-net --allow-run # Deno permissions
 ENTRYPOINT = src/main.ts
 DENO_NAME ?= rite-cli # install with DENO_NAME=foo to install under a different name
 

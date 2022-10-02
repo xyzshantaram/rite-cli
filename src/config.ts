@@ -5,7 +5,8 @@ export function genConfig() {
     const config = {
         instanceUrl: prompt("Enter the path of your Rite Cloud instance [https://riteapp.co.in by default]")?.trim() || "https://riteapp.co.in",
         username: prompt("Enter your Rite Cloud username")?.trim() as string,
-        token: prompt("Enter your Rite Cloud token")?.trim() as string
+        token: prompt("Enter your Rite Cloud token")?.trim() as string,
+        editor: prompt("Enter the name of your editor. [Leave blank to use the value of $EDITOR.]")?.trim() || "",
     };
     if (!config.username) {
         die("You must enter a username.");

@@ -45,6 +45,10 @@ export function getNumericInput(p: string, rest?: Record<string, any>): number {
     return idx;
 }
 
+export function promptYn(msg: string) {
+    return promptOrDie(`${msg} [y/n]`) === 'y';
+}
+
 export const AESDecrypt = (ciphertext: string, passphrase: string) => {
     const bytes = CryptoJS.AES.decrypt(ciphertext, passphrase, {
         format: CryptoJS.format.OpenSSL
