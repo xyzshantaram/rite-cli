@@ -1,7 +1,7 @@
 MAKE_OPTIONS = --unstable
-PERMS = --allow-env --allow-read --allow-write # Deno permissions
-ENTRYPOINT = main.ts
-DENO_NAME ?= mkproj_deno_app # install with DENO_NAME=foo to install under a different name
+PERMS = --allow-env --allow-read --allow-write --allow-net # Deno permissions
+ENTRYPOINT = src/main.ts
+DENO_NAME ?= rite-cli # install with DENO_NAME=foo to install under a different name
 
 # set DENO_MAKE_EXTRA_OPTIONS in environment to supply extra build options.
 OPTIONS = $(MAKE_OPTIONS) $(DENO_MAKE_EXTRA_OPTIONS)
